@@ -31,7 +31,7 @@ function detectQuantity(chunk: string) {
     const p = m.match(/(\d+(?:[.,]\d+)?)\s*(adet|tane|metre|m|koli)?/)
     return { quantity: p ? Number(p[1].replace(',', '.')) : null, unit: p?.[2] ?? null }
   })
-  return parsed[0]
+  return parsed.find((candidate) => candidate.unit) ?? parsed[0]
 }
 
 export function parseOrder(text: string): ParsedOrder {
@@ -41,11 +41,22 @@ export function parseOrder(text: string): ParsedOrder {
     const { item, confidence } = detectItem(chunk)
     if (!item) return []
     const qty = detectQuantity(chunk)
-    const price = customer?.priceOverrides?.[item.sku] ?? item.listPrice
+    const customerPrice = customer?.priceOverrides?.[item.sku]
+    const price = customerPrice ?? item.listPrice
     let issue = ''
-    if (qty.unit === 'koli' && item.packSize > 1) issue = `Koli adedi ${item.packSize}. ${qty.quantity ?? '?'} koli = ${(qty.quantity ?? 0) * item.packSize} adet olarak mı girilsin?`
-    else if (qty.quantity == null) issue = 'Miktar bulunamadı.'
-    else if ((qty.quantity ?? 0) > item.stock && item.unit !== 'metre') issue = `Stok ${item.stock} ${item.unit}. İstenen miktar stoktan yüksek.`
+    let suggestedQuantity: number | undefined
+    let suggestedUnit: string | undefined
+
+    if (qty.unit === 'koli' && item.packSize > 1) {
+      suggestedQuantity = (qty.quantity ?? 0) * item.packSize
+      suggestedUnit = item.unit
+      issue = `1 koli = ${item.packSize} ${item.unit}. ${qty.quantity ?? '?'} koli → ${suggestedQuantity} ${item.unit} olarak girilsin mi?`
+    } else if (qty.quantity == null) {
+      issue = 'Miktar bulunamadı.'
+    } else if ((qty.quantity ?? 0) > item.stock && item.unit !== 'metre') {
+      issue = `Stok ${item.stock} ${item.unit}. İstenen miktar stoktan yüksek.`
+    }
+
     return [{
       raw: chunk,
       sku: item.sku,
@@ -55,6 +66,9 @@ export function parseOrder(text: string): ParsedOrder {
       unitPrice: price,
       stock: item.stock,
       confidence: issue ? Math.min(confidence, 0.72) : confidence,
+      priceSource: customerPrice != null ? 'customer' : 'list',
+      suggestedQuantity,
+      suggestedUnit,
       issue: issue || undefined
     }]
   })
