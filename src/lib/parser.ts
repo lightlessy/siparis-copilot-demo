@@ -1,6 +1,6 @@
 import { catalog } from '../data/catalog'
 import { customers } from '../data/customers'
-import type { CatalogItem, Customer, ParsedOrder } from './types'
+import type { CatalogItem, Customer, OrderLine, ParsedOrder } from './types'
 
 const normalize = (value: string) => value.toLocaleLowerCase('tr-TR').replace(/[.,;:()]/g, ' ').replace(/\s+/g, ' ').trim()
 
@@ -37,7 +37,7 @@ function detectQuantity(chunk: string) {
 export function parseOrder(text: string): ParsedOrder {
   const customer = detectCustomer(text)
   const chunks = text.split(/(?:,|\bve\b|\bbir de\b)/i).map((x) => x.trim()).filter(Boolean)
-  const lines = chunks.flatMap((chunk) => {
+  const lines: OrderLine[] = chunks.flatMap((chunk) => {
     const { item, confidence } = detectItem(chunk)
     if (!item) return []
     const qty = detectQuantity(chunk)
