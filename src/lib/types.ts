@@ -24,6 +24,9 @@ export type OrderLine = {
   unitPrice: number | null
   stock: number | null
   confidence: number
+  priceSource?: 'customer' | 'list'
+  suggestedQuantity?: number
+  suggestedUnit?: string
   issue?: string
 }
 
