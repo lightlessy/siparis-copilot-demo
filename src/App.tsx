@@ -16,6 +16,11 @@ export default function App() {
   const parsed = useMemo(() => ({ ...initial, lines: initial.lines.map((line, i) => ({ ...line, ...edits[i] })) }), [initial, edits])
   const exceptions = parsed.lines.map((line, index) => ({ line, index })).filter(({ line }) => line.issue)
   const total = parsed.lines.reduce((sum, line) => sum + ((line.quantity ?? 0) * (line.unitPrice ?? 0)), 0)
+  const erpOutput = useMemo(() => ({
+    customerCode: parsed.customerId,
+    customerName: parsed.customerName,
+    lines: parsed.lines.map((line) => ({ sku: line.sku, quantity: line.quantity, unit: line.unit, unitPrice: line.unitPrice }))
+  }), [parsed])
 
   function analyze() {
     setEdits({})
@@ -35,11 +40,17 @@ export default function App() {
   }
 
   function approve(index: number) {
-    updateLine(index, { issue: undefined, confidence: 0.94 })
+    const line = parsed.lines[index]
+    updateLine(index, {
+      quantity: line.suggestedQuantity ?? line.quantity,
+      unit: line.suggestedUnit ?? line.unit,
+      issue: undefined,
+      confidence: 0.94
+    })
   }
 
   async function copyOutput() {
-    await navigator.clipboard.writeText(JSON.stringify(parsed, null, 2))
+    await navigator.clipboard.writeText(JSON.stringify(erpOutput, null, 2))
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1400)
   }
@@ -61,7 +72,7 @@ export default function App() {
       <div className="workspace">
         <section className="column source-column">
           <div className="section-band band-violet"><span>1</span><strong>Gelen sipariş</strong></div>
-          <div className="column-head"><p>Mesajı yapıştır veya örneklerden birini seç.</p></div>
+          <div className="column-head"><p>WhatsApp / e-posta metnini yapıştır veya örneklerden birini seç.</p></div>
           <div className="example-row">{examples.map((example) => <button key={example.label} onClick={() => chooseExample(example.text)}>{example.label}</button>)}</div>
           <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false}/>
           <div className="source-actions"><button className="ghost" onClick={() => setText('')}><RotateCcw size={15}/> Temizle</button><button className="primary violet" onClick={analyze}>Siparişi hazırla</button></div>
@@ -73,7 +84,7 @@ export default function App() {
           {parsed.notes.map((note) => <div className="notice" key={note}><TriangleAlert size={16}/>{note}</div>)}
           <div className="order-list">
             {parsed.lines.map((line, index) => <article className={`order-card ${line.issue ? 'needs-review' : 'is-ready'}`} key={`${line.sku}-${index}`}>
-              <div className="order-card-top"><div><strong>{line.product}</strong><span>{line.sku}</span></div><span className={`confidence ${line.issue ? 'warn' : ''}`}>{Math.round(line.confidence * 100)}%</span></div>
+              <div className="order-card-top"><div><strong>{line.product}</strong><span>{line.sku}</span></div><div className="line-badges">{line.priceSource === 'customer' && <span className="context-badge">Müşteri fiyatı</span>}<span className={`confidence ${line.issue ? 'warn' : ''}`}>{Math.round(line.confidence * 100)}%</span></div></div>
               <div className="field-grid">
                 <label>Miktar<input type="number" value={line.quantity ?? ''} onChange={(e) => updateLine(index, { quantity: e.target.value ? Number(e.target.value) : null })}/></label>
                 <label>Birim<input value={line.unit ?? ''} onChange={(e) => updateLine(index, { unit: e.target.value })}/></label>
@@ -93,13 +104,13 @@ export default function App() {
             {exceptions.map(({ line, index }) => <article className="exception-card" key={index}>
               <div className="exception-title"><div className="warning-icon"><TriangleAlert size={16}/></div><div><strong>{line.product}</strong><span>{line.sku}</span></div></div>
               <p>{line.issue}</p>
-              <div className="exception-actions"><button className="ghost" onClick={() => updateLine(index, { issue: undefined })}>Düzeltildi</button><button className="primary amber" onClick={() => approve(index)}><Check size={14}/> Onayla</button></div>
+              <div className="exception-actions"><button className="ghost" onClick={() => updateLine(index, { issue: undefined })}>Elle düzelttim</button><button className="primary amber" onClick={() => approve(index)}><Check size={14}/> Öneriyi onayla</button></div>
             </article>)}
             {!exceptions.length && <div className="ready"><div className="ready-icon"><Check size={20}/></div><strong>ERP çıktısı hazır</strong><span>Kontrol bekleyen alan yok.</span></div>}
           </div>
           <div className="output-box">
-            <div className="output-head"><div><span>ÇIKTI</span><strong>ERP JSON</strong></div><button onClick={() => void copyOutput()}><Copy size={14}/> {copied ? 'Kopyalandı' : 'Kopyala'}</button></div>
-            <pre>{JSON.stringify(parsed, null, 2)}</pre>
+            <div className="output-head"><div><span>ÇIKTI</span><strong>ERP-ready JSON</strong></div><button onClick={() => void copyOutput()}><Copy size={14}/> {copied ? 'Kopyalandı' : 'Kopyala'}</button></div>
+            <pre>{JSON.stringify(erpOutput, null, 2)}</pre>
           </div>
         </section>
       </div>
